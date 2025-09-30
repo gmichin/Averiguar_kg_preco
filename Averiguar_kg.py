@@ -139,22 +139,16 @@ def realizar_comparacao(margem_df, csv_df):
                 status = 'ERRO'
                 
             resultados.append({
+                'STATUS': status,
                 'OS': row['OS'],
                 'NF': row['NF-E'],
                 'COD': row['CODPRODUTO'],
-                'QTDE_MARGEM': qtde,
-                'PESO_CSV': peso_csv,
-                'PRECO_MARGEM': preco,
-                'PRECO_CSV': preco_csv,
-                'CF_MARGEM': cf,
-                'CF_ESPERADO': cf_esperado,
-                'HISTORICO_CSV': historico,
-                'HISTORICO_ESPERADO': historico_esperado,
-                'PESO_MATCH': 'SIM' if peso_match else 'NÃO',
-                'PRECO_MATCH': 'SIM' if preco_match else 'NÃO', 
-                'CF_MATCH': 'SIM' if cf_match else 'NÃO',
-                'HISTORICO_MATCH': 'SIM' if historico_match else 'NÃO',
-                'STATUS': status
+                'CF': cf,
+                'HISTORICO': historico,
+                'QTDE_AJUSTADA': qtde,
+                'PESO': peso_csv,
+                'Preço Venda': preco,
+                'PRECO': preco_csv
             })
             
         except Exception as e:
@@ -163,7 +157,6 @@ def realizar_comparacao(margem_df, csv_df):
     return pd.DataFrame(resultados)
 
 def criar_planilha_resultados(df):
-    """Cria planilha de resultados simplificada"""
     
     if df.empty:
         print("Nenhum resultado!")
@@ -173,7 +166,7 @@ def criar_planilha_resultados(df):
     corretos = df[df['STATUS'] == 'CORRETO']
     erros = df[df['STATUS'] == 'ERRO']
     
-    output_path = r"C:\Users\win11\Downloads\Resultado_Simplificado.xlsx"
+    output_path = r"C:\Users\win11\Downloads\MAR x MOV.xlsx"
     
     with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
         corretos.to_excel(writer, sheet_name='CORRETOS', index=False)
@@ -188,13 +181,6 @@ def criar_planilha_resultados(df):
     print(f"Total analisado: {total}")
     print(f"Registros corretos: {total_corretos} ({total_corretos/total*100:.1f}%)")
     print(f"Registros com erro: {total - total_corretos} ({(total-total_corretos)/total*100:.1f}%)")
-    
-    if total > 0:
-        print(f"\nDetalhes dos erros:")
-        print(f"- Peso: {len(df[df['PESO_MATCH'] == 'NÃO'])}")
-        print(f"- Preço: {len(df[df['PRECO_MATCH'] == 'NÃO'])}")
-        print(f"- CF: {len(df[df['CF_MATCH'] == 'NÃO'])}")
-        print(f"- Histórico: {len(df[df['HISTORICO_MATCH'] == 'NÃO'])}")
     
     return output_path
 
