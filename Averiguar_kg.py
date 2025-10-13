@@ -1,12 +1,13 @@
 import pandas as pd
 import numpy as np
+import chardet
 
 def carregar_planilhas():
     """Carrega e prepara as planilhas para análise"""
     
     print("Carregando arquivo Excel...")
     margem_df = pd.read_excel(
-        r"C:\Users\win11\Downloads\Margem_250929 - wapp.xlsx",
+        r"C:\Users\win11\Downloads\Margem_251010 - wapp.xlsx",
         sheet_name="Base (3,5%)",
         header=8,
         skiprows=0
@@ -14,21 +15,59 @@ def carregar_planilhas():
     
     print("Carregando arquivo CSV...")
     try:
+        # Detectar codificação
+        csv_path = r"S:\hor\excel\20251001.csv"
+        with open(csv_path, 'rb') as f:
+            raw_data = f.read()
+            encoding_result = chardet.detect(raw_data)
+            encoding = encoding_result['encoding']
+            print(f"Codificação detectada: {encoding} (confiança: {encoding_result['confidence']:.2f})")
+        
+        # Se a confiança for baixa, tentar encodings comuns
+        if encoding_result['confidence'] < 0.7:
+            encodings_to_try = ['latin-1', 'iso-8859-1', 'cp1252', 'utf-8']
+        else:
+            encodings_to_try = [encoding]
+        
         # Detectar separador
-        with open(r"C:\Users\win11\Downloads\20250901.csv", 'r', encoding='utf-8') as f:
-            first_line = f.readline()
-            sep = ';' if first_line.count(';') > first_line.count(',') else ','
-    
-        csv_df = pd.read_csv(
-            r"C:\Users\win11\Downloads\20250901.csv",
-            encoding='utf-8',
-            sep=sep,
-            engine='python',
-            on_bad_lines='skip',
-            decimal=',',
-            thousands='.',
-            dtype={'HISTORICO': str}  # Forçar como string
-        )
+        for enc in encodings_to_try:
+            try:
+                with open(csv_path, 'r', encoding=enc) as f:
+                    first_line = f.readline()
+                    sep = ';' if first_line.count(';') > first_line.count(',') else ','
+                    print(f"Separador detectado: '{sep}' usando encoding: {enc}")
+                
+                csv_df = pd.read_csv(
+                    csv_path,
+                    encoding=enc,
+                    sep=sep,
+                    engine='python',
+                    on_bad_lines='skip',
+                    decimal=',',
+                    thousands='.',
+                    dtype={'HISTORICO': str}  # Forçar como string
+                )
+                print(f"CSV carregado com sucesso usando encoding: {enc}")
+                break
+                
+            except UnicodeDecodeError:
+                print(f"Falha com encoding {enc}, tentando próximo...")
+                continue
+            except Exception as e:
+                print(f"Erro com encoding {enc}: {e}")
+                continue
+        else:
+            # Se nenhum encoding funcionou, tentar sem especificar encoding
+            print("Tentando carregar sem especificar encoding...")
+            csv_df = pd.read_csv(
+                csv_path,
+                sep=sep,
+                engine='python',
+                on_bad_lines='skip',
+                decimal=',',
+                thousands='.',
+                dtype={'HISTORICO': str}
+            )
             
     except Exception as e:
         print(f"Erro ao carregar CSV: {e}")
@@ -76,6 +115,9 @@ def limpar_e_preparar_dados(margem_df, csv_df):
     # Remover linhas com valores vazios nas chaves
     margem_df = margem_df.dropna(subset=['OS', 'NF-E', 'CODPRODUTO'])
     csv_df = csv_df.dropna(subset=['OS', 'NF', 'CODPRODUTO'])
+    
+    print(f"Após limpeza - Margem: {len(margem_df)} registros")
+    print(f"Após limpeza - CSV: {len(csv_df)} registros")
     
     return margem_df, csv_df
 
