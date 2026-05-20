@@ -7,7 +7,7 @@ def carregar_planilhas():
     
     print("Carregando arquivo Excel...")
     margem_df = pd.read_excel(
-        r"C:\Users\win11\Downloads\Margem_251010 - wapp.xlsx",
+        r"C:\Users\DELL\Downloads\260519_MRG - wapp.xlsx",
         sheet_name="Base (3,5%)",
         header=8,
         skiprows=0
@@ -16,7 +16,7 @@ def carregar_planilhas():
     print("Carregando arquivo CSV...")
     try:
         # Detectar codificação
-        csv_path = r"S:\hor\excel\20251001.csv"
+        csv_path = r"Y:\hor\excel\20260501.csv"
         with open(csv_path, 'rb') as f:
             raw_data = f.read()
             encoding_result = chardet.detect(raw_data)
@@ -24,10 +24,18 @@ def carregar_planilhas():
             print(f"Codificação detectada: {encoding} (confiança: {encoding_result['confidence']:.2f})")
         
         # Se a confiança for baixa, tentar encodings comuns
-        if encoding_result['confidence'] < 0.7:
-            encodings_to_try = ['latin-1', 'iso-8859-1', 'cp1252', 'utf-8']
-        else:
-            encodings_to_try = [encoding]
+        # Sempre testar encodings comuns também
+        encodings_to_try = [
+            encoding,
+            'cp1252',
+            'latin-1',
+            'iso-8859-1',
+            'utf-8'
+        ]
+
+        # remover duplicados
+        encodings_to_try = list(dict.fromkeys(encodings_to_try))
+
         
         # Detectar separador
         for enc in encodings_to_try:
