@@ -2,73 +2,38 @@ import pandas as pd
 import numpy as np
 import chardet
 
+
 def carregar_planilhas():
-    """Carrega e prepara as planilhas para análise"""
-    
     print("Carregando arquivo Excel...")
+
     margem_df = pd.read_excel(
-        r"C:\Users\DELL\Downloads\260519_MRG - wapp.xlsx",
+        r"C:\Users\DELL\Downloads\260520_MRG - wapp.xlsx",
         sheet_name="Base (3,5%)",
-        header=8,
-        skiprows=0
+        header=8
     )
-    
+
     print("Carregando arquivo CSV...")
-    try:
-        # Detectar codificação
-        csv_path = r"Y:\hor\excel\20260501.csv"
-        with open(csv_path, 'rb') as f:
-            raw_data = f.read()
-            encoding_result = chardet.detect(raw_data)
-            encoding = encoding_result['encoding']
-            print(f"Codificação detectada: {encoding} (confiança: {encoding_result['confidence']:.2f})")
-        
-        # Se a confiança for baixa, tentar encodings comuns
-        # Sempre testar encodings comuns também
-        encodings_to_try = [
-            encoding,
-            'cp1252',
-            'latin-1',
-            'iso-8859-1',
-            'utf-8'
-        ]
 
-        # remover duplicados
-        encodings_to_try = list(dict.fromkeys(encodings_to_try))
+    csv_path = r"Y:\hor\excel\20230101.csv"
 
+    # detectar encoding (amostra ao invés de arquivo inteiro)
+    with open(csv_path, 'rb') as f:
+        raw_data = f.read(200000)
+        encoding = chardet.detect(raw_data)['encoding']
 
-        # Detectar separador
-        for enc in encodings_to_try:
-            try:
-                with open(csv_path, 'r', encoding=enc) as f:
-                    first_line = f.readline()
-                    sep = ';' if first_line.count(';') > first_line.count(',') else ','
-                    print(f"Separador detectado: '{sep}' usando encoding: {enc}")
-                
-                csv_df = pd.read_csv(
-                    csv_path,
-                    encoding=enc,
-                    sep=sep,
-                    engine='python',
-                    on_bad_lines='skip',
-                    decimal=',',
-                    thousands='.',
-                    dtype={'HISTORICO': str}  # Forçar como string
-                )
-                print(f"CSV carregado com sucesso usando encoding: {enc}")
-                break
-                
-            except UnicodeDecodeError:
-                print(f"Falha com encoding {enc}, tentando próximo...")
-                continue
-            except Exception as e:
-                print(f"Erro com encoding {enc}: {e}")
-                continue
-        else:
-            # Se nenhum encoding funcionou, tentar sem especificar encoding
-            print("Tentando carregar sem especificar encoding...")
+    encodings = list(dict.fromkeys([
+        encoding, 'cp1252', 'latin-1', 'iso-8859-1', 'utf-8'
+    ]))
+
+    for enc in encodings:
+        try:
+            with open(csv_path, 'r', encoding=enc) as f:
+                first_line = f.readline()
+                sep = ';' if first_line.count(';') > first_line.count(',') else ','
+
             csv_df = pd.read_csv(
                 csv_path,
+                encoding=enc,
                 sep=sep,
                 engine='python',
                 on_bad_lines='skip',
@@ -76,197 +41,143 @@ def carregar_planilhas():
                 thousands='.',
                 dtype={'HISTORICO': str}
             )
-            
-    except Exception as e:
-        print(f"Erro ao carregar CSV: {e}")
-        return None, None
-    
+
+            print(f"CSV carregado com encoding: {enc}")
+            break
+
+        except Exception:
+            continue
+    else:
+        csv_df = pd.read_csv(csv_path, sep=sep, engine='python')
+
     return margem_df, csv_df
 
-def limpar_e_preparar_dados(margem_df, csv_df):
-    """Limpa e prepara os dados para comparação"""
-    
-    # Verificar colunas disponíveis
-    print("\nColunas no CSV:", list(csv_df.columns))
-    print("Colunas na Margem:", list(margem_df.columns))
-    
-    # CORREÇÃO: Verificar se a coluna HISTORICO existe e seus valores
-    if 'HISTORICO' in csv_df.columns:
-        print("\nValores únicos em HISTORICO:", csv_df['HISTORICO'].unique())
-        print("Total de HISTORICO vazios:", csv_df['HISTORICO'].isna().sum())
-        print("Total de HISTORICO com valor:", csv_df['HISTORICO'].notna().sum())
-    
-    # Renomear colunas para facilitar
+
+def limpar_dados(margem_df, csv_df):
+
+    print("\nPreparando dados...")
+
     csv_df = csv_df.rename(columns={
         'ROMANEIO': 'OS',
-        'NOTA FISCAL': 'NF', 
+        'NOTA FISCAL': 'NF',
         'PRODUTO': 'CODPRODUTO',
         'PESO': 'PESO_CSV',
         'UNITARIO': 'PRECO_CSV',
         'HISTORICO': 'HISTORICO_CSV'
     })
-    
-    # Selecionar apenas colunas necessárias da Margem
-    colunas_margem = ['OS', 'NF-E', 'CODPRODUTO', 'QTDE AJUSTADA', 'Preço Venda ', 'CF']
-    margem_df = margem_df[colunas_margem].copy()
-    
-    # Converter colunas numéricas
-    margem_df['QTDE AJUSTADA'] = pd.to_numeric(margem_df['QTDE AJUSTADA'], errors='coerce')
-    margem_df['Preço Venda '] = pd.to_numeric(margem_df['Preço Venda '], errors='coerce')
-    
-    csv_df['PESO_CSV'] = pd.to_numeric(csv_df['PESO_CSV'], errors='coerce')
-    csv_df['PRECO_CSV'] = pd.to_numeric(csv_df['PRECO_CSV'], errors='coerce')
-    csv_df['OS'] = pd.to_numeric(csv_df['OS'], errors='coerce')
-    csv_df['NF'] = pd.to_numeric(csv_df['NF'], errors='coerce')
-    csv_df['CODPRODUTO'] = pd.to_numeric(csv_df['CODPRODUTO'], errors='coerce')
-    
-    # Remover linhas com valores vazios nas chaves
+
+    margem_df = margem_df[
+        ['OS', 'NF-E', 'CODPRODUTO', 'QTDE AJUSTADA', 'Preço Venda ', 'CF']
+    ].copy()
+
+    # conversões
+    for col in ['QTDE AJUSTADA', 'Preço Venda ']:
+        margem_df[col] = pd.to_numeric(margem_df[col], errors='coerce')
+
+    for col in ['PESO_CSV', 'PRECO_CSV', 'OS', 'NF', 'CODPRODUTO']:
+        csv_df[col] = pd.to_numeric(csv_df[col], errors='coerce')
+
     margem_df = margem_df.dropna(subset=['OS', 'NF-E', 'CODPRODUTO'])
     csv_df = csv_df.dropna(subset=['OS', 'NF', 'CODPRODUTO'])
-    
-    print(f"Após limpeza - Margem: {len(margem_df)} registros")
-    print(f"Após limpeza - CSV: {len(csv_df)} registros")
-    
+
     return margem_df, csv_df
 
-def realizar_comparacao(margem_df, csv_df):
-    """Realiza a comparação simplificada"""
-    
+
+def comparar(margem_df, csv_df):
+
     print("\nRealizando merge...")
-    
-    # Fazer merge
-    merged_df = pd.merge(
+
+    df = pd.merge(
         margem_df,
         csv_df,
         left_on=['OS', 'NF-E', 'CODPRODUTO'],
         right_on=['OS', 'NF', 'CODPRODUTO'],
         how='inner'
     )
-    
-    print(f"Registros após merge: {len(merged_df)}")
-    
-    if len(merged_df) == 0:
-        return pd.DataFrame()
-    
-    # Aplicar lógica de comparação
-    resultados = []
-    
-    for _, row in merged_df.iterrows():
-        try:
-            qtde = row['QTDE AJUSTADA']
-            preco = row['Preço Venda ']
-            peso_csv = row['PESO_CSV']
-            preco_csv = row['PRECO_CSV']
-            cf = row.get('CF', '')
-            historico = row.get('HISTORICO_CSV', '')
-            
-            # Pular se valores forem NaN
-            if pd.isna(qtde) or pd.isna(preco) or pd.isna(peso_csv) or pd.isna(preco_csv):
-                continue
-            
-            # Aplicar lógica de negativos
-            if qtde < 0 and preco < 0:
-                peso_comparar = -abs(peso_csv)
-                preco_comparar = -abs(preco_csv)
-                cf_esperado = 'DEV'
-                historico_esperado = '68'
-            else:
-                peso_comparar = abs(peso_csv)
-                preco_comparar = abs(preco_csv)
-                cf_esperado = 'ESP'
-                historico_esperado = '51'
-            
-            # Verificar matches
-            peso_match = abs(qtde - peso_comparar) < 0.1
-            preco_match = abs(preco - preco_comparar) < 0.01
-            cf_match = str(cf).strip() == cf_esperado
-            historico_match = str(historico).strip() == historico_esperado
-            
-            # Determinar status
-            if peso_match and preco_match and cf_match and historico_match:
-                status = 'CORRETO'
-            else:
-                status = 'ERRO'
-                
-            resultados.append({
-                'STATUS': status,
-                'OS': row['OS'],
-                'NF': row['NF-E'],
-                'COD': row['CODPRODUTO'],
-                'CF': cf,
-                'HISTORICO': historico,
-                'QTDE_AJUSTADA': qtde,
-                'PESO': peso_csv,
-                'Preço Venda': preco,
-                'PRECO': preco_csv
-            })
-            
-        except Exception as e:
-            continue
-    
-    return pd.DataFrame(resultados)
 
-def criar_planilha_resultados(df):
-    
     if df.empty:
-        print("Nenhum resultado!")
+        return pd.DataFrame()
+
+    qtde = df['QTDE AJUSTADA']
+    preco = df['Preço Venda ']
+    peso = df['PESO_CSV']
+    preco_csv = df['PRECO_CSV']
+
+    negativo = (qtde < 0) & (preco < 0)
+
+    peso_ref = np.where(negativo, -np.abs(peso), np.abs(peso))
+    preco_ref = np.where(negativo, -np.abs(preco_csv), np.abs(preco_csv))
+
+    cf_ref = np.where(negativo, 'DEV', 'ESP')
+    hist_ref = np.where(negativo, '68', '51')
+
+    resultado = pd.DataFrame({
+        'STATUS': np.where(
+            np.isclose(qtde, peso_ref, atol=0.1) &
+            np.isclose(preco, preco_ref, atol=0.01) &
+            df['CF'].astype(str).str.strip().eq(cf_ref) &
+            df['HISTORICO_CSV'].astype(str).str.strip().eq(hist_ref),
+            'CORRETO',
+            'ERRO'
+        ),
+        'OS': df['OS'],
+        'NF': df['NF-E'],
+        'COD': df['CODPRODUTO'],
+        'CF': df['CF'],
+        'HISTORICO': df['HISTORICO_CSV'],
+        'QTDE': qtde,
+        'PESO': peso,
+        'PRECO': preco,
+        'PRECO_CSV': preco_csv
+    })
+
+    return resultado
+
+
+def salvar(df):
+
+    if df.empty:
+        print("Nenhum resultado.")
         return None
-    
-    # Separar corretos e erros
+
     corretos = df[df['STATUS'] == 'CORRETO']
     erros = df[df['STATUS'] == 'ERRO']
-    
-    output_path = r"C:\Users\DELL\Downloads\MAR x MOV.xlsx"
-    
-    with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+
+    output = r"C:\Users\DELL\Downloads\MAR x MOV.xlsx"
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
         corretos.to_excel(writer, sheet_name='CORRETOS', index=False)
         erros.to_excel(writer, sheet_name='ERROS', index=False)
         df.to_excel(writer, sheet_name='TODOS', index=False)
-    
-    # Estatísticas simples
-    total = len(df)
-    total_corretos = len(corretos)
-    
-    print(f"\n=== RESULTADOS ===")
-    print(f"Total analisado: {total}")
-    print(f"Registros corretos: {total_corretos} ({total_corretos/total*100:.1f}%)")
-    print(f"Registros com erro: {total - total_corretos} ({(total-total_corretos)/total*100:.1f}%)")
-    
-    return output_path
+
+    print("\n=== RESULTADO ===")
+    print(f"Total: {len(df)}")
+    print(f"Corretos: {len(corretos)}")
+    print(f"Erros: {len(erros)}")
+
+    return output
+
 
 def main():
-    """Função principal simplificada"""
     try:
-        print("Iniciando análise...")
-        
-        # Carregar dados
-        margem_df, csv_df = carregar_planilhas()
-        
-        if margem_df is None or csv_df is None:
-            print("Erro ao carregar arquivos!")
+        print("Iniciando...")
+
+        margem, csv = carregar_planilhas()
+        margem, csv = limpar_dados(margem, csv)
+        resultado = comparar(margem, csv)
+
+        if resultado.empty:
+            print("Sem dados para comparar.")
             return
-        
-        print(f"Margem: {len(margem_df)} registros")
-        print(f"CSV: {len(csv_df)} registros")
-        
-        # Preparar dados
-        margem_clean, csv_clean = limpar_e_preparar_dados(margem_df, csv_df)
-        
-        # Comparar
-        resultados = realizar_comparacao(margem_clean, csv_clean)
-        
-        if resultados.empty:
-            print("Nenhum registro para comparar!")
-            return
-        
-        # Salvar resultados
-        arquivo = criar_planilha_resultados(resultados)
-        
+
+        arquivo = salvar(resultado)
+
         if arquivo:
-            print(f"\nArquivo salvo: {arquivo}")
-            
+            print(f"\nArquivo gerado: {arquivo}")
+
     except Exception as e:
         print(f"Erro: {e}")
+
 
 if __name__ == "__main__":
     main()
