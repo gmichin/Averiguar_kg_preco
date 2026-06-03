@@ -5,18 +5,18 @@ import chardet
 def carregar_planilhas():
     """Carrega e prepara as planilhas para análise"""
     
-    print("Carregando arquivo Excel...")
+    print("Carregando arquivo Excel - aba FEC_PQ...")
     margem_df = pd.read_excel(
-        r"C:\Users\win11\Downloads\260530_MRG - wapp.xlsx",
-        sheet_name="Base (3,5%)",
-        header=8,
+        r"C:\Users\win11\Downloads\260602_MRG - wapp.xlsx",
+        sheet_name="FEC_PQ",
+        header=9,  # A10 corresponde à linha 10 (0-index: linha 9)
         skiprows=0
     )
     
     print("Carregando arquivo CSV...")
     try:
         # Detectar codificação
-        csv_path = r"S:\hor\excel\20260501.csv"
+        csv_path = r"S:\hor\excel\20260601.csv"
         with open(csv_path, 'rb') as f:
             raw_data = f.read()
             encoding_result = chardet.detect(raw_data)
@@ -88,7 +88,7 @@ def limpar_e_preparar_dados(margem_df, csv_df):
     
     # Verificar colunas disponíveis
     print("\nColunas no CSV:", list(csv_df.columns))
-    print("Colunas na Margem:", list(margem_df.columns))
+    print("Colunas na Margem (FEC_PQ):", list(margem_df.columns))
     
     # CORREÇÃO: Verificar se a coluna HISTORICO existe e seus valores
     if 'HISTORICO' in csv_df.columns:
@@ -106,13 +106,50 @@ def limpar_e_preparar_dados(margem_df, csv_df):
         'HISTORICO': 'HISTORICO_CSV'
     })
     
-    # Selecionar apenas colunas necessárias da Margem
-    colunas_margem = ['OS', 'NF-E', 'CODPRODUTO', 'QTDE AJUSTADA', 'Preço Venda ', 'CF']
-    margem_df = margem_df[colunas_margem].copy()
+    # Renomear colunas da margem para padronizar (FEC_PQ)
+    # Mapeamento das colunas da FEC_PQ para os nomes esperados
+    colunas_margem_map = {
+        'ROMANEIO': 'OS',           # ROMANEIO na FEC_PQ é equivalente a OS
+        'NF-E': 'NF-E',             # Mantém NF-E
+        'CODPRODUTO': 'CODPRODUTO',  # Mantém CODPRODUTO
+        'QTDE AJUSTADA': 'QTDE AJUSTADA',
+        'PRECO VENDA': 'Preço Venda ',  # PRECO VENDA na FEC_PQ
+        'CF': 'CF'                   # CF na FEC_PQ
+    }
+    
+    # Verificar quais colunas existem no DataFrame
+    colunas_existentes = [col for col in colunas_margem_map.keys() if col in margem_df.columns]
+    colunas_faltantes = [col for col in colunas_margem_map.keys() if col not in margem_df.columns]
+    
+    if colunas_faltantes:
+        print(f"\nATENÇÃO: Colunas não encontradas na FEC_PQ: {colunas_faltantes}")
+        print("Colunas disponíveis na FEC_PQ:", list(margem_df.columns))
+    
+    # Selecionar apenas colunas necessárias da Margem usando os nomes originais da FEC_PQ
+    if colunas_existentes:
+        margem_df = margem_df[colunas_existentes].copy()
+        
+        # Renomear as colunas para os nomes padronizados
+        margem_df = margem_df.rename(columns=colunas_margem_map)
+    else:
+        print("ERRO: Nenhuma coluna esperada foi encontrada na aba FEC_PQ!")
+        return None, None
     
     # Converter colunas numéricas
-    margem_df['QTDE AJUSTADA'] = pd.to_numeric(margem_df['QTDE AJUSTADA'], errors='coerce')
-    margem_df['Preço Venda '] = pd.to_numeric(margem_df['Preço Venda '], errors='coerce')
+    if 'QTDE AJUSTADA' in margem_df.columns:
+        margem_df['QTDE AJUSTADA'] = pd.to_numeric(margem_df['QTDE AJUSTADA'], errors='coerce')
+    else:
+        print("ERRO: Coluna 'QTDE AJUSTADA' não encontrada!")
+        return None, None
+    
+    if 'Preço Venda ' in margem_df.columns:
+        margem_df['Preço Venda '] = pd.to_numeric(margem_df['Preço Venda '], errors='coerce')
+    else:
+        print("ERRO: Coluna 'Preço Venda ' não encontrada!")
+        return None, None
+    
+    if 'CF' in margem_df.columns:
+        margem_df['CF'] = margem_df['CF'].astype(str).str.strip()
     
     csv_df['PESO_CSV'] = pd.to_numeric(csv_df['PESO_CSV'], errors='coerce')
     csv_df['PRECO_CSV'] = pd.to_numeric(csv_df['PRECO_CSV'], errors='coerce')
@@ -121,11 +158,21 @@ def limpar_e_preparar_dados(margem_df, csv_df):
     csv_df['CODPRODUTO'] = pd.to_numeric(csv_df['CODPRODUTO'], errors='coerce')
     
     # Remover linhas com valores vazios nas chaves
-    margem_df = margem_df.dropna(subset=['OS', 'NF-E', 'CODPRODUTO'])
+    if 'OS' in margem_df.columns and 'NF-E' in margem_df.columns and 'CODPRODUTO' in margem_df.columns:
+        margem_df = margem_df.dropna(subset=['OS', 'NF-E', 'CODPRODUTO'])
+    else:
+        print("ERRO: Colunas necessárias para merge não encontradas na margem!")
+        return None, None
+    
     csv_df = csv_df.dropna(subset=['OS', 'NF', 'CODPRODUTO'])
     
-    print(f"Após limpeza - Margem: {len(margem_df)} registros")
+    print(f"\nApós limpeza - Margem (FEC_PQ): {len(margem_df)} registros")
     print(f"Após limpeza - CSV: {len(csv_df)} registros")
+    
+    # Mostrar exemplo dos dados
+    if len(margem_df) > 0:
+        print("\nExemplo de dados da Margem (FEC_PQ):")
+        print(margem_df.head(2))
     
     return margem_df, csv_df
 
@@ -134,18 +181,28 @@ def realizar_comparacao(margem_df, csv_df):
     
     print("\nRealizando merge...")
     
+    # Verificar se as colunas necessárias existem
+    merge_cols_margem = ['OS', 'NF-E', 'CODPRODUTO']
+    merge_cols_csv = ['OS', 'NF', 'CODPRODUTO']
+    
+    for col in merge_cols_margem:
+        if col not in margem_df.columns:
+            print(f"ERRO: Coluna '{col}' não encontrada na margem para merge!")
+            return pd.DataFrame()
+    
     # Fazer merge
     merged_df = pd.merge(
         margem_df,
         csv_df,
-        left_on=['OS', 'NF-E', 'CODPRODUTO'],
-        right_on=['OS', 'NF', 'CODPRODUTO'],
+        left_on=merge_cols_margem,
+        right_on=merge_cols_csv,
         how='inner'
     )
     
     print(f"Registros após merge: {len(merged_df)}")
     
     if len(merged_df) == 0:
+        print("Nenhum registro correspondente encontrado!")
         return pd.DataFrame()
     
     # Aplicar lógica de comparação
@@ -207,6 +264,7 @@ def realizar_comparacao(margem_df, csv_df):
     return pd.DataFrame(resultados)
 
 def criar_planilha_resultados(df):
+    """Cria planilha com resultados"""
     
     if df.empty:
         print("Nenhum resultado!")
@@ -237,7 +295,7 @@ def criar_planilha_resultados(df):
 def main():
     """Função principal simplificada"""
     try:
-        print("Iniciando análise...")
+        print("Iniciando análise com aba FEC_PQ...")
         
         # Carregar dados
         margem_df, csv_df = carregar_planilhas()
@@ -246,11 +304,15 @@ def main():
             print("Erro ao carregar arquivos!")
             return
         
-        print(f"Margem: {len(margem_df)} registros")
+        print(f"Margem (FEC_PQ): {len(margem_df)} registros")
         print(f"CSV: {len(csv_df)} registros")
         
         # Preparar dados
         margem_clean, csv_clean = limpar_e_preparar_dados(margem_df, csv_df)
+        
+        if margem_clean is None or csv_clean is None:
+            print("Erro ao preparar os dados!")
+            return
         
         # Comparar
         resultados = realizar_comparacao(margem_clean, csv_clean)
@@ -267,6 +329,8 @@ def main():
             
     except Exception as e:
         print(f"Erro: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     main()
