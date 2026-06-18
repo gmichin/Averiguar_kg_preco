@@ -7,7 +7,7 @@ def carregar_planilhas():
     
     print("Carregando arquivo Excel - aba FEC_PQ...")
     margem_df = pd.read_excel(
-        r"C:\Users\win11\Downloads\260602_MRG - wapp.xlsx",
+        r"C:\Users\DELL\Downloads\260611_MRG.xlsx",
         sheet_name="FEC_PQ",
         header=9,  # A10 corresponde à linha 10 (0-index: linha 9)
         skiprows=0
@@ -16,7 +16,7 @@ def carregar_planilhas():
     print("Carregando arquivo CSV...")
     try:
         # Detectar codificação
-        csv_path = r"S:\hor\excel\20260601.csv"
+        csv_path = r"Y:\hor\excel\20260601.csv"
         with open(csv_path, 'rb') as f:
             raw_data = f.read()
             encoding_result = chardet.detect(raw_data)
@@ -274,7 +274,7 @@ def criar_planilha_resultados(df):
     corretos = df[df['STATUS'] == 'CORRETO']
     erros = df[df['STATUS'] == 'ERRO']
     
-    output_path = r"C:\Users\win11\Downloads\MAR x MOV.xlsx"
+    output_path = r"C:\Users\DELL\Downloads\MAR x MOV.xlsx"
     
     with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
         corretos.to_excel(writer, sheet_name='CORRETOS', index=False)
