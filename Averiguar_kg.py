@@ -274,7 +274,7 @@ def criar_planilha_resultados(df):
     corretos = df[df['STATUS'] == 'CORRETO']
     erros = df[df['STATUS'] == 'ERRO']
     
-    output_path = r"C:\Users\win11\Downloads\MAR x MOV.xlsx"
+    output_path = r"C:\Users\DELL\Downloads\MAR x MOV.xlsx"
     
     with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
         corretos.to_excel(writer, sheet_name='CORRETOS', index=False)
