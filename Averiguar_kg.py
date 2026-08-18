@@ -7,7 +7,7 @@ def carregar_planilhas():
     
     print("Carregando arquivo Excel - aba FEC_PQ...")
     margem_df = pd.read_excel(
-        r"C:\Users\win11\Downloads\260718_MRG.xlsx",
+        r"C:\Users\win11\Downloads\260818_MRG.xlsx",
         sheet_name="FEC_PQ",
         header=9,  # A10 corresponde à linha 10 (0-index: linha 9)
         skiprows=0
@@ -16,7 +16,7 @@ def carregar_planilhas():
     print("Carregando arquivo CSV...")
     try:
         # Detectar codificação
-        csv_path = r"S:\hor\excel\20260701.csv"
+        csv_path = r"S:\hor\excel\20260801.csv"
         with open(csv_path, 'rb') as f:
             raw_data = f.read()
             encoding_result = chardet.detect(raw_data)
@@ -177,7 +177,7 @@ def limpar_e_preparar_dados(margem_df, csv_df):
     return margem_df, csv_df
 
 def realizar_comparacao(margem_df, csv_df):
-    """Realiza a comparação simplificada"""
+    """Realiza a comparação simplificada com tratamento especial para CF = 'DEV'"""
     
     print("\nRealizando merge...")
     
@@ -221,29 +221,38 @@ def realizar_comparacao(margem_df, csv_df):
             if pd.isna(qtde) or pd.isna(preco) or pd.isna(peso_csv) or pd.isna(preco_csv):
                 continue
             
-            # Aplicar lógica de negativos
-            if qtde < 0 and preco < 0:
+            # Verifica se é uma operação de devolução (CF = 'DEV')
+            is_dev = (str(cf).strip() == 'DEV')
+            
+            if is_dev:
+                # Para DEV: inverter os sinais do CSV e comparar apenas peso e preço
                 peso_comparar = -abs(peso_csv)
                 preco_comparar = -abs(preco_csv)
-                cf_esperado = 'DEV'
-                historico_esperado = '68'
+                
+                peso_match = abs(qtde - peso_comparar) < 0.1
+                preco_match = abs(preco - preco_comparar) < 0.01
+                
+                # Não verifica CF nem HISTORICO, apenas os números
+                if peso_match and preco_match:
+                    status = 'CORRETO'
+                else:
+                    status = 'ERRO'
             else:
+                # Para operações normais (não DEV): valores positivos
                 peso_comparar = abs(peso_csv)
                 preco_comparar = abs(preco_csv)
                 cf_esperado = 'ESP'
                 historico_esperado = '51'
-            
-            # Verificar matches
-            peso_match = abs(qtde - peso_comparar) < 0.1
-            preco_match = abs(preco - preco_comparar) < 0.01
-            cf_match = str(cf).strip() == cf_esperado
-            historico_match = str(historico).strip() == historico_esperado
-            
-            # Determinar status
-            if peso_match and preco_match and cf_match and historico_match:
-                status = 'CORRETO'
-            else:
-                status = 'ERRO'
+                
+                peso_match = abs(qtde - peso_comparar) < 0.1
+                preco_match = abs(preco - preco_comparar) < 0.01
+                cf_match = str(cf).strip() == cf_esperado
+                historico_match = str(historico).strip() == historico_esperado
+                
+                if peso_match and preco_match and cf_match and historico_match:
+                    status = 'CORRETO'
+                else:
+                    status = 'ERRO'
                 
             resultados.append({
                 'STATUS': status,
@@ -274,7 +283,7 @@ def criar_planilha_resultados(df):
     corretos = df[df['STATUS'] == 'CORRETO']
     erros = df[df['STATUS'] == 'ERRO']
     
-    output_path = r"C:\Users\DELL\Downloads\MAR x MOV.xlsx"
+    output_path = r"C:\Users\win11\Downloads\MAR x MOV.xlsx"
     
     with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
         corretos.to_excel(writer, sheet_name='CORRETOS', index=False)
